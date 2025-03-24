@@ -102,3 +102,10 @@ todo-app/
 │ └── todo-service/
 │
 └── README.md # プロジェクト全体の説明
+
+api_gateway でサービスを追加する方法
+
+1. src/api/routes
+2. src/core/config.py サービスの URL
+3. src/main.py サービスのルート
+4. docker-compose.yml の environment と depents_on
