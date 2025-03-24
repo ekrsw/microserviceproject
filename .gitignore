@@ -1,0 +1,12 @@
+# Python関連
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# データベース関連
+db.sqlite
+auth-service/docker/postgresql/data/*
+
+# 環境設定
+.env
