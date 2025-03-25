@@ -1,21 +1,28 @@
-FROM python:3.9-slim
+FROM python:3.12.9-slim
 
-WORKDIR /app
+# 作業ディレクトリの設定
+WORKDIR /workdir
 
-# PostgreSQLリポジトリの追加とlibpqの更新
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg2 \
-    && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
-    && echo "deb http://apt.postgresql.org/pub/repos/apt/ bookworm-pgdg main" > /etc/apt/sources.list.d/postgresql.list \
-    && apt-get update && apt-get install -y \
-    libpq-dev \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+# 必要な環境変数を設定
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# 依存関係のインストール
+COPY ./requirements.txt .
+RUN pip install --uppgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# ソースコードのコピー
+COPY . /workdir
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+# 非rootユーザーを作成して実行（セキュリティ向上）
+RUN adduser --disabled-password --gecos "" appuser && \
+    # ボリュームマウントポイントの所有権を変更
+    mkdir -p /workdir/.pytest_cache && \
+    chwon -R appuser:appuser /workdir
+
+# Uvicorn でアプリケーションを起動（ワーカー数を制限）
+# 環境変数からホストとポートを取得するためにエントリーポイントスクリプトを使用
+COPY ./docker/fastapi/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
