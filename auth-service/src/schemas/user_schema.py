@@ -1,10 +1,12 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing import List, Optional
+from uuid import UUID
 
 
 class UserBase(BaseModel):
     username: Optional[str] = None
-    is_admin: Optional[bool] = False
     # ここにフィールドを追加
 
     @field_validator("username")
@@ -21,14 +23,14 @@ class UserBase(BaseModel):
         return username
 
 class UserResponseBase(BaseModel):
-    id: str
+    id: UUID
     username: str
-    fullname: Optional[str] = None
-    is_admin: bool
-    group_id: Optional[str] = None
-    # ここにフィールドを追加
-    
     model_config = ConfigDict(from_attributes=True)
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
 
 
 class PasswordMixin(BaseModel):

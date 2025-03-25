@@ -9,7 +9,7 @@ from sqlalchemy.sql import func
 
 from .base import ModelBaseMixin, T
 from src.core.session import AsyncContextManager
-from src.schemas.user_schema import UserCreate, UserPasswordSchema
+from src.schemas.user_schema import UserCreate, UserPasswordSchema, UserUpdate
 
 
 pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
@@ -18,9 +18,6 @@ class User(ModelBaseMixin):
     __tablename__ = "users"
     username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
-    # ここにフィールドを追加
-
-    group = relationship("Group", back_populates="operators")
 
     def __repr__(self):
         return f"<User {self.username}>"
@@ -133,7 +130,11 @@ class User(ModelBaseMixin):
         return user
     
     @classmethod
-    async def update_user(cls: Type[T], *, db_obj: T, obj_in: Dict[str, Any]) -> T:
+    async def update_user(cls: Type[T],
+                          id: str,
+                          username: Optional[str] = None,
+                          password: Optional[str] = None
+                          ) -> T:
         """汎用ユーザー情報を更新する。
 
         Args:
@@ -147,30 +148,27 @@ class User(ModelBaseMixin):
             ValueError: 更新対象のユーザーオブジェクトが存在しない場合
             Exception: 論理削除済みのユーザーを更新しようとした場合
         """
+        update_data = UserUpdate(username=username, password=password)
+        validated_username = update_data.username
+        validated_password = update_data.password
         async with AsyncContextManager() as session:
             # 最新のユーザー情報を取得して削除状態を確認
-            current_user = await cls.get_user_by_id(db_obj.id, include_deleted=True)
+            current_user = await cls.get_user_by_id(id)
             if current_user is None:
                 raise ValueError("User not found")
-            if current_user.deleted_at is not None:
-                raise Exception("Cannot update deleted user")
+
+            # ユーザー情報を更新
+            if validated_username:
+                current_user.username = validated_username
 
             # パスワードを特別に処理
-            update_data = obj_in.copy()
-            if "password" in update_data:
-                hashed_password = await cls.set_password(update_data["password"])
-                del update_data["password"]
-                update_data["hashed_password"] = hashed_password
+            if validated_password:
+                current_user.hashed_password = await cls.set_password(validated_password)
             
-            # 動的にフィールドを更新
-            for field, value in update_data.items():
-                if hasattr(db_obj, field):
-                    setattr(db_obj, field, value)
-            
-            session.add(db_obj)
+            session.add(current_user)
             await session.commit()
-            await session.refresh(db_obj)
-        return db_obj
+            await session.refresh(current_user)
+        return current_user
     
     @classmethod
     async def delete_user(cls: Type[T], user_id: str):
@@ -183,7 +181,6 @@ class User(ModelBaseMixin):
             user = await cls.get_user_by_id(user_id, include_deleted=True)
             user.deleted_at = func.now()
             session.add(user)
-            await session.commit()
     
     @classmethod
     async def delete_user_permanently(cls: Type[T], user_id: str) -> None:
@@ -198,57 +195,3 @@ class User(ModelBaseMixin):
         async with AsyncContextManager() as session:
             user = await cls.get_user_by_id(user_id, include_deleted=True)
             await session.delete(user)
-            await session.commit()
-    
-    @classmethod
-    async def update_password(cls: Type[T], user_id: str, plain_password: Optional[str]):
-        """パスワードを更新する。
-
-        Args:
-            user_id (str): パスワードを更新するユーザーのID
-            plain_password (Optional[str]): 新しい平文パスワード
-
-        Returns:
-            T: 更新後のユーザーオブジェクト
-        """
-        async with AsyncContextManager() as session:
-            user = await cls.get_user_by_id(user_id)
-            hashed_password = await cls.set_password(plain_password)
-            user.hashed_password = hashed_password
-            session.add(user)
-            await session.commit()
-            await session.refresh(user)
-        return user
-    
-    # Pydanticモデルとの連携用メソッド
-    @classmethod
-    async def from_schema(cls: Type[T], *, schema: BaseModel) -> T:
-        """PydanticスキーマからUserオブジェクトを作成する。
-
-        Args:
-            schema (BaseModel): ユーザー情報を含むPydanticスキーマ
-
-        Returns:
-            T: 作成されたユーザーオブジェクト
-        """
-        schema_dict = schema.model_dump()
-        return await cls.create_user(obj_in=schema_dict)
-    
-    @classmethod
-    async def update_from_schema(cls: Type[T], *, db_obj: T, schema: BaseModel) -> T:
-        """PydanticスキーマでUserオブジェクトを更新する。
-
-        Args:
-            db_obj (T): 更新対象のユーザーオブジェクト
-            schema (BaseModel): 更新情報を含むPydanticスキーマ
-
-        Returns:
-            T: 更新後のユーザーオブジェクト
-
-        Raises:
-            ValueError: 更新対象のユーザーオブジェクトが存在しない場合
-        """
-        if db_obj is None:
-            raise ValueError("User not found")
-        schema_dict = schema.model_dump(exclude_unset=True)
-        return await cls.update_user(db_obj=db_obj, obj_in=schema_dict)
