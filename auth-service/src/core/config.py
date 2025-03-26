@@ -6,6 +6,12 @@ from datetime import timedelta
 class Settings(BaseSettings):
     # データベース設定
     DATABASE_URL: str = Field(..., json_schema_extra={"env": "DATABASE_URL"})
+    # データベース設定
+    database_host: str = Field(default="localhost", json_schema_extra={"env": "DATABASE_HOST"})
+    database_port: int = Field(default=5432, json_schema_extra={"env": "DATABASE_PORT"})
+    database_user: str = Field(default="my_database_user", json_schema_extra={"env": "DATABASE_USER"})
+    database_password: str = Field(default="my_database_password", json_schema_extra={"env": "DATABASE_PASSWORD"})
+    database_name: str = Field(default="my_database", json_schema_extra={"env": "DATABASE_NAME"})
 
     # JWT設定
     SECRET_KEY: str = Field(..., json_schema_extra={"env": "SECRET_KEY"})

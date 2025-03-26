@@ -4,7 +4,7 @@ import os
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-from app.core.config import settings
+from src.core.config import settings
 
 
 # 環境変数からDATABASE_URLを取得するか、設定から構築する
